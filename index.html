@@ -1,0 +1,427 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>World Explorer AR</title>
+<style>
+*{box-sizing:border-box;margin:0}html,body{height:100%;overflow:hidden;background:#030714;color:#e8f0ff;font-family:system-ui,Segoe UI,sans-serif}
+#g{position:fixed;inset:0;width:100%;height:100%}
+.gl{background:rgba(10,18,40,.82);border:1px solid rgba(120,180,255,.25);border-radius:16px}
+button{font:inherit;color:#fff;cursor:pointer;border:0}
+#intro{position:fixed;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;background:radial-gradient(ellipse at 50% 45%,rgba(3,7,20,.15),rgba(3,7,20,.9) 78%);transition:opacity 1.2s ease,transform 1.6s cubic-bezier(.2,.7,.2,1),filter 1.2s}
+#intro:before{content:'';position:absolute;inset:-25%;z-index:-1;background:conic-gradient(#00c6ff44,#7b5cff44,#ff5d7344,#ffd36e44,#00c6ff44);filter:blur(60px);will-change:transform;animation:sp 20s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#intro.out{opacity:0;transform:scale(1.06) translateY(-14px);filter:blur(6px);pointer-events:none}
+#warp{position:fixed;left:50%;top:50%;width:20px;height:20px;margin:-10px;border-radius:50%;border:2px solid #7ee8fa;z-index:8;opacity:0;pointer-events:none}#warp.go{animation:wp 1.9s cubic-bezier(.2,.7,.2,1)}@keyframes wp{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(90)}}
+#credit{position:fixed;right:12px;bottom:10px;z-index:30;padding:7px 16px;font-size:.95rem;font-weight:700;letter-spacing:.05em;color:#ffd36e;background:rgba(5,10,28,.94);border:1px solid rgba(255,211,110,.6);border-radius:20px;box-shadow:0 0 18px rgba(255,211,110,.35);pointer-events:none}
+.tag{letter-spacing:.4em;font-size:.75rem;color:#7ee8fa;margin-bottom:10px;animation:fi 1s both}
+#intro h1{font-size:clamp(2.6rem,9vw,6.4rem);line-height:1;font-weight:800;background:linear-gradient(90deg,#7ee8fa,#fff,#ffd36e,#ff8fab,#7ee8fa);background-size:300%;-webkit-background-clip:text;color:transparent;animation:sh 7s linear infinite,fi 1.2s .1s both}
+@keyframes sh{to{background-position:300%}}@keyframes fi{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+#intro p{max-width:600px;margin:16px 0 24px;opacity:.85;line-height:1.55;animation:fi 1.2s .3s both}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;max-width:780px;width:100%;margin-bottom:28px}
+.card{padding:14px 10px;transition:.3s;animation:fi .9s both;animation-delay:calc(.4s + var(--i)*.1s)}.card:hover{transform:translateY(-8px) scale(1.05);border-color:#7ee8fa;box-shadow:0 10px 40px #00c6ff44}
+.card b{display:block;font-size:1.9rem}.card span{font-size:.8rem;opacity:.8;line-height:1.3;display:block;margin-top:4px}
+.go{position:relative;padding:18px 54px;font-size:1.25rem;font-weight:700;border-radius:50px;background:linear-gradient(90deg,#00c6ff,#7b5cff,#ff5d73);background-size:200%;animation:sh 4s linear infinite,fi 1s 1.1s both;box-shadow:0 0 50px #00c6ff88}
+.go:after{content:'';position:absolute;inset:-6px;border-radius:50px;border:2px solid #7ee8fa;animation:rg 2s infinite}@keyframes rg{to{transform:scale(1.25);opacity:0}}
+.alt{background:none;margin-top:14px;opacity:.65;text-decoration:underline;font-size:.9rem}
+body:not(.run) #chips,body:not(.run) #cam,body:not(.run) #heard{opacity:0;pointer-events:none}
+#chips,#cam,#heard{transition:opacity 1.2s}
+#chips{position:fixed;top:10px;left:14px;z-index:5;display:flex;gap:6px;padding:8px;max-width:calc(100vw - 220px);overflow-x:auto;align-items:center}
+#chips button,.ctl button{padding:7px 12px;border-radius:14px;background:rgba(80,140,255,.25);white-space:nowrap;transition:.2s}
+#chips button:hover,.ctl button:hover{background:rgba(80,140,255,.65);transform:translateY(-2px)}
+#chips input{padding:7px 12px;border-radius:14px;border:1px solid rgba(120,180,255,.4);background:rgba(0,0,0,.35);color:#fff;font:inherit;width:170px}
+#panel{position:fixed;left:14px;top:76px;bottom:14px;width:min(380px,92vw);z-index:5;padding:16px;display:none;flex-direction:column;overflow:hidden;animation:fi .6s}
+#panel h2{font-size:1.5rem;color:#ffd36e}.ctl{display:flex;gap:6px;margin:10px 0;flex-wrap:wrap}
+#txt{overflow-y:auto;scroll-behavior:smooth;flex:1;padding-right:6px}
+#txt p{padding:8px 10px;margin:5px 0;border-radius:10px;line-height:1.45;opacity:.55;transition:.4s;font-size:.95rem}
+#txt p.on{opacity:1;background:rgba(0,198,255,.16);border-left:3px solid #ffd36e;transform:translateX(4px)}
+#cam{position:fixed;right:14px;top:10px;width:176px;z-index:6;padding:6px;text-align:center;font-size:.75rem}
+#cam div{position:relative;transform:scaleX(-1);height:128px}#cam video,#cam canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:10px;object-fit:cover}
+#heard{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:5;padding:9px 18px;font-size:.9rem;max-width:80vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#guide{position:fixed;inset:0;z-index:8;display:none;align-items:center;justify-content:center;background:rgba(3,7,20,.55)}#guide.on{display:flex;animation:fi .8s}
+#guide .box{padding:24px;max-width:520px;width:92vw;max-height:84vh;overflow:auto}#guide h2{color:#ffd36e;margin-bottom:10px}
+#guide li{list-style:none;padding:9px 12px;margin:5px 0;border-radius:12px;opacity:.5;transition:.4s;line-height:1.4}#guide li.on{opacity:1;background:rgba(0,198,255,.18);transform:scale(1.03)}
+#guide button{margin-top:10px;padding:10px 22px;border-radius:20px;background:linear-gradient(90deg,#00c6ff,#7b5cff)}
+#trip{position:fixed;inset:0;z-index:11;display:none;align-items:center;justify-content:center;background:rgba(3,7,20,.7)}#trip.on{display:flex;animation:fi .5s}
+#trip .box{padding:22px;width:min(480px,94vw);max-height:92vh;overflow:auto}#trip h2{color:#ffd36e;margin-bottom:4px}#trip small{opacity:.7}
+#trip label{display:block;margin:10px 0 3px;font-size:.85rem;opacity:.85}#trip input,#trip select{width:100%;padding:9px 12px;border-radius:12px;border:1px solid rgba(120,180,255,.4);background:rgba(0,0,0,.4);color:#fff;font:inherit}#trip option{color:#000}
+#trip .row{display:flex;gap:8px}#trip .row>div{flex:1}#trip .acts{display:flex;gap:8px;margin-top:16px}#trip .acts button{padding:11px 20px;border-radius:20px;background:rgba(80,140,255,.3)}#trip .acts .pri{flex:1;background:linear-gradient(90deg,#00c6ff,#7b5cff);font-weight:700}
+#tmsg{margin-top:10px;font-size:.85rem;min-height:1.2em;color:#ffd36e}
+#cmodal{position:fixed;inset:0;z-index:11;display:none;align-items:center;justify-content:center;background:rgba(3,7,20,.7)}#cmodal.on{display:flex}#cmodal .box{padding:20px;width:min(640px,94vw);max-height:90vh;display:flex;flex-direction:column}#cmodal h2{color:#ffd36e;margin-bottom:8px}#cmodal input{padding:9px 12px;border-radius:12px;border:1px solid rgba(120,180,255,.4);background:rgba(0,0,0,.4);color:#fff;font:inherit;margin-bottom:10px}#cgrid{overflow:auto;display:flex;flex-wrap:wrap;gap:6px;flex:1}#cgrid button,#ccl{padding:6px 11px;border-radius:12px;background:rgba(80,140,255,.25)}#cgrid button:hover{background:rgba(80,140,255,.65)}#ccl{margin-top:10px;align-self:flex-end}
+@media(max-width:700px){#panel{top:auto;height:36vh;bottom:54px}#heard{bottom:56px;font-size:.8rem}#credit{font-size:.85rem;padding:6px 12px}#cam{width:120px}#cam div{height:88px}}
+</style></head><body>
+<canvas id="g"></canvas>
+<div id="intro"><div class="tag">AR · HAND TRACKING · VOICE</div><h1>World Explorer</h1><p>Spin the planet with your bare hands, speak to it, and travel through the culture, cities and hidden wonders of any country, state or city on Earth.</p>
+<div class="cards"><div class="card gl" style="--i:0"><b>🖐</b>Open palm<span>move to rotate the globe</span></div><div class="card gl" style="--i:1"><b>✊</b>Fist<span>freeze the globe</span></div><div class="card gl" style="--i:2"><b>🤏</b>Pinch<span>thumb and finger: zoom in and out</span></div><div class="card gl" style="--i:3"><b>🎙</b>Voice<span>"Tell me about Peru"</span></div><div class="card gl" style="--i:4"><b>🧭</b>World tour<span>auto journey, anywhere</span></div><div class="card gl" style="--i:5"><b>🌐</b>Two hands<span>hold the globe between your hands</span></div></div>
+<button class="go" id="start">Begin Journey 🌍</button><button class="alt" id="nocam">or continue with mouse only</button><div id="env" style="display:none;margin-top:12px;max-width:520px;font-size:.8rem;color:#ffd36e;line-height:1.4"></div></div>
+<div id="warp"></div><div id="credit">Developed by Jai Bothra</div>
+<div id="chips" class="gl"><form id="sf" style="display:flex;gap:6px"><input id="si" placeholder="Search any place..."><button>Go</button></form><span id="cl" style="display:flex;gap:6px"></span></div>
+<div id="heard" class="gl">🎙 starting microphone...</div>
+<div id="cmodal"><div class="box gl"><h2>🌍 All countries (<span id="cn"></span>)</h2><input id="cq" placeholder="Search a country..."><div id="cgrid"></div><button id="ccl">Close</button></div></div>
+<div id="trip"><div class="box gl"><h2>✈ Trip Planner</h2><small>Tell me your budget and I'll plan the whole trip and fly you through it.</small>
+<label>Where to?</label><select id="tsc"><option value="india">Somewhere in India</option><option value="intl">International</option><option value="any">Anywhere - surprise me</option></select>
+<label>Specific place (optional)</label><input id="tde" placeholder="e.g. Rajasthan, Japan, Kerala, Bali">
+<div class="row"><div><label>Budget (whole group)</label><input id="tbu" type="number" min="1" value="50000"></div><div><label>Currency</label><select id="tcu"><option>INR</option><option>USD</option><option>EUR</option><option>GBP</option></select></div></div>
+<div class="row"><div><label>Days</label><input id="tda" type="number" min="1" max="21" value="5"></div><div><label>Travellers</label><input id="ttr" type="number" min="1" max="20" value="2"></div></div>
+<div class="row"><div><label>Starting from (optional)</label><input id="tfr" placeholder="e.g. Guwahati"></div><div><label>Style</label><select id="tst"><option>Balanced</option><option>Budget backpacking</option><option>Culture and heritage</option><option>Adventure</option><option>Food</option><option>Relaxed</option><option>Luxury</option></select></div></div>
+<div id="tmsg"></div><div class="acts"><button id="tgo" class="pri">Plan my trip ✈</button><button id="tts">Test connection</button><button id="tcl">Cancel</button></div></div></div>
+<div id="guide"><div class="box gl"><h2>🌍 How it works</h2><ul id="gl"></ul><button id="gs">Skip guide</button></div></div>
+<div id="panel" class="gl"><h2 id="pt"></h2><div class="ctl"><button id="bp">⏸ Stop</button><button id="bn">⏭ Next</button><button id="bk">⏩ Cities</button><button id="bc">✖ Close</button><button id="bm">🎵 Music</button><button id="bdl" style="display:none">⬇ Itinerary</button></div><div id="txt"></div></div>
+<div id="cam" class="gl"><div><video id="v" autoplay playsinline muted></video><canvas id="cc" width="160" height="120"></canvas></div><span id="hs">camera off</span></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// name, keys, [lon,lat], zoom, culture, cities [name,lon,lat,visit]
+const R=[
+["Assam",["assam","asam"],[93,26.3],5,"Assam is a land of rolling tea gardens and the mighty Brahmaputra. Its heritage includes Bihu dances, Sattriya classical dance from Vaishnav monasteries, golden Muga silk, and the Ahom dynasty that ruled for six hundred years.",[["Guwahati",91.74,26.14,"Visit Kamakhya Temple, Umananda river island and sunset cruises on the Brahmaputra."],["Tezpur",92.8,26.63,"Explore Agnigarh hill, Bhomoraguri rock carvings and nearby tea estates."],["Kaziranga",93.37,26.58,"Take a jeep safari to spot one-horned rhinos in this UNESCO park."],["Jorhat",94.21,26.75,"Stay in the tea capital and take a ferry to Majuli, the largest river island."],["Sivasagar",94.64,26.98,"See Rang Ghar amphitheatre and Talatal Ghar from the Ahom kingdom."],["Dibrugarh",94.91,27.47,"Sleep in a tea garden bungalow and watch river dolphins."]]],
+["Rajasthan",["rajasthan","rajastan"],[74.2,26.6],5,"Rajasthan, the Land of Kings, glows with majestic forts and palaces. Its heritage is Ghoomar folk dance, Kalbeliya music, vivid turbans, puppet theatre and royal Rajput food like dal baati churma.",[["Jaipur",75.79,26.91,"Visit Amber Fort, Hawa Mahal and the City Palace in the pink city."],["Jodhpur",73.02,26.24,"Climb Mehrangarh Fort and wander the blue lanes."],["Udaipur",73.71,24.58,"Take a boat on Lake Pichola beside the floating palaces."],["Jaisalmer",70.91,26.92,"Camp on the Sam sand dunes and ride camels near the golden fort."],["Pushkar",74.55,26.49,"Relax at the holy lake ghats and see the Brahma temple."]]],
+["Kerala",["kerala","kerela"],[76.6,10.2],6,"Kerala, God's Own Country, is famed for palm fringed backwaters and spice gardens. Its culture shines through Kathakali dance, Theyyam rituals, the Onam festival with snake boat races, and Ayurveda.",[["Kochi",76.27,9.93,"See the Chinese fishing nets and the old quarters of Fort Kochi."],["Munnar",77.06,10.09,"Walk through endless tea hills and Eravikulam National Park."],["Alleppey",76.33,9.49,"Float through the backwaters on a traditional houseboat."],["Wayanad",76.08,11.69,"Visit Edakkal caves and misty waterfalls."],["Thiruvananthapuram",76.95,8.52,"Visit Padmanabhaswamy Temple and relax at Kovalam beach."]]],
+["Japan",["japan"],[137,36],3.3,"Japan blends ancient tradition with futuristic innovation. Tea ceremonies, kabuki theatre, samurai history, cherry blossom festivals and anime culture live side by side.",[["Tokyo",139.69,35.69,"Visit Senso-ji temple, the Shibuya crossing and neon Akihabara."],["Kyoto",135.77,35.01,"Walk the thousand gates of Fushimi Inari and the Gion geisha district."],["Osaka",135.5,34.69,"Eat street food in Dotonbori and see Osaka Castle."],["Hiroshima",132.46,34.39,"Visit the Peace Memorial Park and the floating torii gate at Miyajima."],["Sapporo",141.35,43.06,"Enjoy the snow festival and fresh miso ramen."]]],
+["Egypt",["egypt"],[30.8,26.8],3.8,"Egypt is the cradle of one of the oldest civilizations on Earth. Pharaohs, hieroglyphs, pyramids and the eternal Nile shaped five thousand years of art and belief.",[["Cairo",31.24,30.04,"Stand before the Giza pyramids and the Great Sphinx."],["Alexandria",29.92,31.2,"Visit the Bibliotheca Alexandrina and Qaitbay Citadel by the sea."],["Luxor",32.64,25.7,"Explore Karnak Temple and the Valley of the Kings."],["Aswan",32.9,24.09,"Sail a felucca on the Nile and visit Philae temple and Abu Simbel."]]],
+["Italy",["italy"],[12.5,42.5],4.2,"Italy is home to the Roman Empire and the Renaissance. Opera, fashion, art, and regional cuisines like pasta, pizza and gelato are part of daily life.",[["Rome",12.5,41.9,"See the Colosseum, the Vatican and toss a coin in the Trevi Fountain."],["Florence",11.25,43.77,"Admire the Duomo and the Uffizi Gallery."],["Venice",12.33,45.44,"Glide on a gondola and visit St Mark's Square."],["Milan",9.19,45.46,"Visit the Duomo and The Last Supper."],["Naples",14.27,40.85,"Eat original pizza and explore the ruins of Pompeii."]]],
+["France",["france"],[2.5,46.6],4.6,"France is a land of art, philosophy, gastronomy and haute couture. Cafe culture, cheese, wine and cinema influence the entire world.",[["Paris",2.35,48.86,"Visit the Eiffel Tower, the Louvre and Montmartre."],["Mont-Saint-Michel",-1.51,48.64,"Walk to the abbey on the tidal island."],["Lyon",4.83,45.76,"Eat in traditional bouchons and explore secret passages called traboules."],["Bordeaux",-0.58,44.84,"Tour wine chateaux."],["Nice",7.26,43.7,"Stroll the Promenade des Anglais on the Riviera."]]],
+["Peru",["peru"],[-74,-10],3.6,"Peru was the heart of the Inca Empire. Quechua traditions, colorful textiles, pan flute music and a world famous cuisine live on in the Andes.",[["Lima",-77.04,-12.05,"Taste fresh ceviche and see the Miraflores cliffs."],["Cusco",-71.97,-13.53,"Visit the Plaza de Armas and the Sacred Valley."],["Machu Picchu",-72.55,-13.16,"Reach the Inca citadel at sunrise."],["Arequipa",-71.54,-16.4,"Visit Santa Catalina Monastery and see condors in Colca Canyon."],["Lake Titicaca",-69.3,-15.8,"Visit the floating reed islands of the Uros people."]]],
+["Brazil",["brazil","brasil"],[-52,-12],2.6,"Brazil is a vibrant mix of Indigenous, African and European cultures. Samba, Carnival, capoeira and football define its joyful spirit, while the Amazon is its green heart.",[["Rio de Janeiro",-43.17,-22.91,"See Christ the Redeemer, Sugarloaf and Copacabana beach."],["Salvador",-38.5,-12.97,"Feel Afro-Brazilian culture in the colourful Pelourinho."],["Brasilia",-47.88,-15.79,"Admire modernist architecture by Oscar Niemeyer."],["Foz do Iguacu",-54.43,-25.6,"Stand beside the thundering Iguazu Falls."],["Manaus",-60.02,-3.12,"Cruise the Amazon to the meeting of the waters."]]],
+["Kenya",["kenya"],[37.9,0.2],5,"Kenya is the heartland of safari and the Maasai people. Beaded jewellery, warrior dances and Swahili coastal culture make it unforgettable.",[["Nairobi",36.82,-1.29,"Visit Nairobi National Park and the Giraffe Centre."],["Maasai Mara",35.14,-1.5,"Witness the great wildebeest migration."],["Amboseli",37.26,-2.65,"See elephants beneath Mount Kilimanjaro."],["Mombasa",39.67,-4.04,"Visit Fort Jesus and Diani beach."],["Lamu",40.9,-2.27,"Wander the Swahili old town with no cars."]]],
+["Australia",["australia"],[134,-26],2.5,"Australia holds the world's oldest living cultures, with Aboriginal art and Dreamtime stories more than sixty thousand years old, alongside beach life and unique wildlife like kangaroos and koalas.",[["Sydney",151.21,-33.87,"See the Opera House and surf at Bondi."],["Melbourne",144.96,-37.81,"Find street art in the laneways and drive the Great Ocean Road."],["Uluru",131.04,-25.34,"Watch sunrise over the sacred red rock."],["Cairns",145.77,-16.92,"Dive the Great Barrier Reef."],["Perth",115.86,-31.95,"Meet quokkas on Rottnest Island."]]],
+["Turkey",["turkey","turkiye"],[35,39],4.2,"Turkey bridges Europe and Asia. Ottoman heritage, whirling dervishes, Turkish tea, bazaars and kebabs mingle with Byzantine and Roman ruins.",[["Istanbul",28.98,41.01,"Visit Hagia Sophia, the Blue Mosque and cruise the Bosphorus."],["Ephesus",27.34,37.94,"Walk to the ancient Library of Celsus."],["Pamukkale",29.12,37.92,"Bathe on white travertine terraces."],["Antalya",30.71,36.9,"Explore Kaleici old town and turquoise beaches."],["Cappadocia",34.83,38.64,"Float in a hot air balloon over fairy chimneys."]]]
+].map(a=>({n:a[0],k:a[1],c:a[2],z:a[3],t:a[4],p:a[5].map(x=>({n:x[0],lo:x[1],la:x[2],v:x[3],t0:0}))}));
+
+
+const $=s=>document.querySelector(s),cv=$('#g'),ctx=cv.getContext('2d',{alpha:false,desynchronized:true});
+const FS={t:0,speaking:false,cancel(){clearTimeout(this.t);this.speaking=false},speak(u){this.speaking=true;clearTimeout(this.t);this.t=setTimeout(()=>{this.speaking=false;u.onend&&u.onend()},Math.max(1800,(u.text||'').length*62))},getVoices(){return[]}};
+const SSU=window.SpeechSynthesisUtterance||function(t){this.text=t};
+const syn=(window.speechSynthesis&&window.SpeechSynthesisUtterance)?window.speechSynthesis:FS;
+let W,H,base,dpr=1,rot=[-70,-20],tr=[-70,-20],k=1,tk=1,sel=null,rev=-1,S=[],idx=0,tok=0,paused=false,w1=null,w5=null,hand=0,drag=null,started=false,tour=false,ti=0,frozen=false,guide=false,gt=0,bg=null,lq=0,home=0,LB=null,maxDpr=1,ema=16;
+function rs(){dpr=Math.min(devicePixelRatio||1,maxDpr);W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;const nb=Math.min(W,H)*.4;if(base){tk*=nb/base;k*=nb/base;home*=nb/base}else{tk=k=nb*1.25}base=nb;
+ bg=document.createElement('canvas');bg.width=W*dpr;bg.height=H*dpr;const b=bg.getContext('2d');b.scale(dpr,dpr);b.fillStyle='#030714';b.fillRect(0,0,W,H);for(let i=0;i<240;i++){b.globalAlpha=Math.random()*.8+.2;b.fillStyle='#fff';b.fillRect(Math.random()*W,Math.random()*H,Math.random()*1.6+.3,Math.random()*1.6+.3)}}
+addEventListener('resize',rs);rs();
+const proj=d3.geoOrthographic().clipAngle(90).precision(1.5),path=d3.geoPath(proj,ctx),grat=d3.geoGraticule10();
+const ld=(u,cb)=>fetch(u).then(r=>r.json()).then(w=>cb({land:topojson.feature(w,w.objects.land),b:topojson.mesh(w,w.objects.countries,(a,b)=>a!==b),c:topojson.feature(w,w.objects.countries).features})).catch(()=>{});
+ld('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json',w=>{w1=w;LB=w.c.map(f=>({n:NM[f.properties.name]||f.properties.name,c:d3.geoCentroid(f),d:2*Math.sqrt(d3.geoArea(f)/Math.PI)}))});setTimeout(()=>ld('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-50m.json',w=>{w.c.forEach(f=>{f.cen=d3.geoCentroid(f);const b=d3.geoBounds(f),c=f.cen,g=d3.geoDistance;f.rad=Math.max(g(c,b[0]),g(c,b[1]),g(c,[b[0][0],b[1][1]]),g(c,[b[1][0],b[0][1]]));if(b[0][0]>b[1][0])f.rad=3.2});w5=w}),6000);
+const lev=(a,b)=>{const m=[...Array(a.length+1)].map((_,i)=>[i]);for(let j=1;j<=b.length;j++)m[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return m[a.length][b.length]};
+const findR=t=>R.find(r=>r.k.some(x=>(' '+t+' ').includes(' '+x+' ')));
+const ALLC="Afghanistan,Albania,Algeria,Andorra,Angola,Antigua and Barbuda,Argentina,Armenia,Australia,Austria,Azerbaijan,Bahamas,Bahrain,Bangladesh,Barbados,Belarus,Belgium,Belize,Benin,Bhutan,Bolivia,Bosnia and Herzegovina,Botswana,Brazil,Brunei,Bulgaria,Burkina Faso,Burundi,Cabo Verde,Cambodia,Cameroon,Canada,Central African Republic,Chad,Chile,China,Colombia,Comoros,Congo,Costa Rica,Croatia,Cuba,Cyprus,Czechia,DR Congo,Denmark,Djibouti,Dominica,Dominican Republic,Ecuador,Egypt,El Salvador,Equatorial Guinea,Eritrea,Estonia,Eswatini,Ethiopia,Fiji,Finland,France,Gabon,Gambia,Georgia,Germany,Ghana,Greece,Grenada,Guatemala,Guinea,Guinea-Bissau,Guyana,Haiti,Honduras,Hungary,Iceland,India,Indonesia,Iran,Iraq,Ireland,Israel,Italy,Ivory Coast,Jamaica,Japan,Jordan,Kazakhstan,Kenya,Kiribati,Kuwait,Kyrgyzstan,Laos,Latvia,Lebanon,Lesotho,Liberia,Libya,Liechtenstein,Lithuania,Luxembourg,Madagascar,Malawi,Malaysia,Maldives,Mali,Malta,Marshall Islands,Mauritania,Mauritius,Mexico,Micronesia,Moldova,Monaco,Mongolia,Montenegro,Morocco,Mozambique,Myanmar,Namibia,Nauru,Nepal,Netherlands,New Zealand,Nicaragua,Niger,Nigeria,North Korea,North Macedonia,Norway,Oman,Pakistan,Palau,Palestine,Panama,Papua New Guinea,Paraguay,Peru,Philippines,Poland,Portugal,Qatar,Romania,Russia,Rwanda,Saint Kitts and Nevis,Saint Lucia,Saint Vincent and the Grenadines,Samoa,San Marino,Sao Tome and Principe,Saudi Arabia,Senegal,Serbia,Seychelles,Sierra Leone,Singapore,Slovakia,Slovenia,Solomon Islands,Somalia,South Africa,South Korea,South Sudan,Spain,Sri Lanka,Sudan,Suriname,Sweden,Switzerland,Syria,Taiwan,Tajikistan,Tanzania,Thailand,Timor-Leste,Togo,Tonga,Trinidad and Tobago,Tunisia,Turkey,Turkmenistan,Tuvalu,Uganda,Ukraine,United Arab Emirates,United Kingdom,United States,Uruguay,Uzbekistan,Vanuatu,Vatican City,Venezuela,Vietnam,Yemen,Zambia,Zimbabwe".split(',');
+const WT={'Georgia':'Georgia (country)','Congo':'Republic of the Congo','DR Congo':'Democratic Republic of the Congo','Gambia':'The Gambia','Bahamas':'The Bahamas','Cabo Verde':'Cape Verde','Palestine':'State of Palestine','Micronesia':'Federated States of Micronesia','Sao Tome and Principe':'São Tomé and Príncipe','Timor-Leste':'East Timor','Czechia':'Czech Republic'};
+const ALIAS={'usa':'United States','us':'United States','u s a':'United States','america':'United States','united states of america':'United States','uk':'United Kingdom','u k':'United Kingdom','britain':'United Kingdom','great britain':'United Kingdom','england':'United Kingdom','uae':'United Arab Emirates','emirates':'United Arab Emirates','czech republic':'Czechia','burma':'Myanmar','holland':'Netherlands','swaziland':'Eswatini','macedonia':'North Macedonia','cote d ivoire':'Ivory Coast',"côte d'ivoire":'Ivory Coast','east timor':'Timor-Leste','cape verde':'Cabo Verde','korea':'South Korea','vatican':'Vatican City','republic of the congo':'Congo','democratic republic of the congo':'DR Congo','drc':'DR Congo','congo kinshasa':'DR Congo','russian federation':'Russia','persia':'Iran','turkiye':'Turkey','dem. rep. congo':'DR Congo','central african rep.':'Central African Republic','bosnia and herz.':'Bosnia and Herzegovina','dominican rep.':'Dominican Republic','s. sudan':'South Sudan','eq. guinea':'Equatorial Guinea','solomon is.':'Solomon Islands','n. cyprus':'Cyprus','somaliland':'Somalia','w. sahara':'Morocco','fr. s. antarctic lands':'Antarctica'};
+const NM={'Dem. Rep. Congo':'DR Congo','Central African Rep.':'Central African Rep.','Bosnia and Herz.':'Bosnia & Herz.'};
+const names=()=>ALLC.concat(w1?w1.c.map(f=>f.properties.name):[]);
+function buildChips(){}
+$('#cl').innerHTML=R.map((r,i)=>`<button data-i="${i}">${r.n}</button>`).join('')+'<button id="tb">🧭 Tour</button><button id="sp">🎲 Surprise</button><button id="cb">🌍 All Countries</button><button id="trb">✈ Plan Trip</button><button id="hb">❓ Guide</button>';
+
+// ---------- hand tracking ----------
+let lm=null,vid=$('#v'),cc=$('#cc').getContext('2d'),lastVT=-1,px=null,py=null,vx=0,vy=0,miss=0,mode='',pdS=.5,pPrev=0,zt=0,prel=null,st=0,pz=false,sS=0,sPrev=0,lastDet=0,lite=false,rvx=0,rvy=0,lastRot=0,gx=0,gy=0,tw=null,twAt=0,wasTwo=false,lostAt=0,fin=false,vb=0,introUntil=0;
+R.forEach(r=>{if(!['Assam','Rajasthan','Kerala'].includes(r.n))r.cn=1});const locked=()=>sel&&!paused&&!fin;
+if(/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)){maxDpr=1;lite=true;rs()}
+async function initCam(){
+ try{vid.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:320,height:240},audio:false});await vid.play();$('#hs').textContent='loading AI hand tracker...';
+  const m=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+  const fs=await m.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+  const o=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.5,minHandPresenceConfidence:.5,minTrackingConfidence:.5});
+  try{lm=await m.HandLandmarker.createFromOptions(fs,o('GPU'))}catch(e){lm=await m.HandLandmarker.createFromOptions(fs,o('CPU'))}
+  $('#hs').textContent='show your hand ✋'}catch(e){$('#hs').textContent='camera/AI unavailable - mouse works'}}
+function track(){
+ const nw=performance.now();
+ if(locked()){hand=0;px=null;vx=vy=0;rvx=rvy=0;tw=null;mode='';const m='🔒 gestures paused while pins play - say stop or close';if($('#hs').textContent!==m){$('#hs').textContent=m;cc.clearRect(0,0,160,120)}return}
+ if(!lm||vid.readyState<2||vid.currentTime===lastVT||nw-lastDet<(nw-vb<1500?85:45))return;lastDet=nw;lastVT=vid.currentTime;
+ const r=lm.detectForVideo(vid,performance.now()),L=r.landmarks&&r.landmarks[0];cc.clearRect(0,0,160,120);
+ const H2=r.landmarks&&r.landmarks.length>1?r.landmarks:null;
+ if(H2){cc.fillStyle='#7ee8fa';H2.forEach(h=>h.forEach(p=>{cc.beginPath();cc.arc(p.x*160,p.y*120,2.5,0,7);cc.fill()}));
+  const pc=h=>[1-(h[0].x+h[5].x+h[9].x+h[13].x+h[17].x)/5,(h[0].y+h[5].y+h[9].y+h[13].y+h[17].y)/5],a=pc(H2[0]),b=pc(H2[1]),dy=Math.abs(a[1]-b[1]),dx=Math.abs(a[0]-b[0]);
+  if(dy>.14&&dy<.65&&dx<.32&&!sel){tw={x:(a[0]+b[0])/2*W,y:(a[1]+b[1])/2*H,k:Math.max(base*.6,Math.min(base*1.6,dy*H*.48))};twAt=nw;hand=1;miss=0;lostAt=0;vx=vy=0;rvx=rvy=0;px=null;mode='two';if($('#hs').textContent!=='🌐 holding the globe')$('#hs').textContent='🌐 holding the globe';return}}
+ if(!L){if(++miss>8){hand=0;px=null;vx=vy=0;mode='';frozen=false;pPrev=0;prel=null;st=0;if(sel)lostAt=performance.now();$('#hs').textContent='no hand detected'}return}
+ miss=0;hand=1;lostAt=0;cc.fillStyle='#7ee8fa';L.forEach(p=>{cc.beginPath();cc.arc(p.x*160,p.y*120,2.5,0,7);cc.fill()});
+ const ids=[0,5,9,13,17],cx=1-ids.reduce((a,i)=>a+L[i].x,0)/5,cy=ids.reduce((a,i)=>a+L[i].y,0)/5,now=performance.now();
+ const ps=Math.hypot(L[0].x-L[9].x,L[0].y-L[9].y)||1,d=(a,b)=>Math.hypot(L[a].x-L[b].x,L[a].y-L[b].y);
+ const ext=[[8,6],[12,10],[16,14],[20,18]].map(([a,b])=>d(a,0)>d(b,0)*1.05),op=(ext[1]?1:0)+(ext[2]?1:0)+(ext[3]?1:0);
+ pdS=pdS*.55+d(4,8)/ps*.45;
+ const rel=[12,16,20].map(i=>[(L[i].x-L[0].x)/ps,(L[i].y-L[0].y)/ps]);let mv=9;if(prel)mv=rel.reduce((a,r,j)=>a+Math.hypot(r[0]-prel[j][0],r[1]-prel[j][1]),0)/3;prel=rel;
+ st=op===3?st+1:0;
+ if(op>=2){mode='open';frozen=false;const ra=pPrev>0?pdS/pPrev:1;if(st>=6&&mv<.025&&Math.abs(ra-1)>.015){tk*=Math.pow(Math.max(.9,Math.min(1.1,ra)),3);zt=now}pPrev=pdS}
+ else{mode='fist';frozen=true;pPrev=0;prel=null}
+ if(px!==null){vx=vx*.5+(cx-px)*.5;vy=vy*.5+(cy-py)*.5}px=cx;py=cy;
+ {const f=260*Math.pow(base/k,.7),dtD=Math.max(.02,(now-lastRot)/1000),ux=Math.abs(vx)>.001?vx:0,uy=Math.abs(vy)>.001?vy:0;lastRot=now;
+  rvx=Math.max(-420,Math.min(420,ux*f/dtD));rvy=Math.max(-420,Math.min(420,uy*f*.8/dtD))}
+ tk=Math.max(base*.7,Math.min(base*60,tk));
+ const hv=mode==='open'?(now-zt<250?'🤏 pinch zooming':'🖐 move hand to rotate'):'🧊 frozen - move to steer, open palm to unfreeze';if($('#hs').textContent!==hv)$('#hs').textContent=hv}
+
+// ---------- render ----------
+let last=0;
+function frame(t){
+ const dt=Math.min(.06,(t-last)/1000||.016);last=t;ema=ema*.97+dt*1000*.03;if(ema>26&&maxDpr>1&&t>4000){maxDpr=1;rs();ema=16}else if(ema>30&&t>8000)lite=true;
+ 
+ if(performance.now()-lastRot>110){const dc=Math.exp(-dt*14);rvx*=dc;rvy*=dc}
+ tr[0]+=rvx*dt;tr[1]=Math.max(-80,Math.min(80,tr[1]+rvy*dt));
+ if(!gx){gx=W/2;gy=H/2}
+ const n2=performance.now(),two=tw&&n2-twAt<350;
+ if(two){tr[0]+=55*dt;tk=tw.k;wasTwo=true}else if(wasTwo){wasTwo=false;tk=home||base*1.08}
+ if(sel&&!hand&&lostAt&&n2-lostAt>900&&!locked()){lostAt=0;tr=[-sel.c[0],-sel.c[1]];tk=home=base*Math.max(1.1,sel.z)}
+ if(!sel&&!hand&&!drag&&!frozen&&!two)tr[0]+=6*dt;
+ const e=(1-Math.pow(.002,dt))*(performance.now()<introUntil?.32:1),dl=((tr[0]-rot[0]+540)%360)-180;rot[0]+=dl*e;rot[1]+=(tr[1]-rot[1])*e;k+=(tk-k)*e;{const tw2=tw&&performance.now()-twAt<350;gx+=((tw2?tw.x:W/2)-gx)*e;gy+=((tw2?tw.y:H/2)-gy)*e}
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.drawImage(bg,0,0,W,H);
+ proj.precision((Math.abs(rvx)+Math.abs(rvy)>5||Math.abs(tk/k-1)>.02||Math.abs(tr[0]-rot[0])>.3)?3:1.2).translate([gx,gy]).scale(k).rotate([rot[0],rot[1]]);
+ let g=ctx.createRadialGradient(gx,gy,k*.95,gx,gy,k*1.3);g.addColorStop(0,'rgba(60,160,255,.5)');g.addColorStop(1,'rgba(60,160,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(gx,gy,k*1.3,0,7);ctx.fill();
+ g=ctx.createRadialGradient(gx-k*.3,gy-k*.3,k*.1,gx,gy,k);g.addColorStop(0,'#14396b');g.addColorStop(1,'#061431');ctx.fillStyle=g;ctx.beginPath();path({type:'Sphere'});ctx.fill();
+ if(!lite){ctx.strokeStyle='rgba(140,200,255,.3)';ctx.lineWidth=.8;ctx.beginPath();path(grat);ctx.stroke()}
+ const Wd=(k>base*6&&w5)?w5:w1;
+ if(Wd&&Wd===w5){const vw=Math.min(1.7,W/(2*k)+.15),cc0=[-rot[0],-rot[1]],cl=w5.c.filter(f=>d3.geoDistance(f.cen,cc0)<f.rad+vw);ctx.fillStyle='#2a8f6e';ctx.beginPath();cl.forEach(f=>path(f));ctx.fill();ctx.strokeStyle='rgba(2,20,35,.9)';ctx.lineWidth=3.4;ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=1.4;ctx.stroke()}else if(Wd){ctx.fillStyle='#2a8f6e';ctx.beginPath();path(Wd.land);ctx.fill();ctx.strokeStyle='#9ff5ff';ctx.lineWidth=1.4;ctx.stroke();ctx.beginPath();path(Wd.b);ctx.strokeStyle='rgba(2,20,35,.9)';ctx.lineWidth=3.4;ctx.stroke();ctx.strokeStyle='#fff';ctx.lineWidth=1.4;ctx.stroke()}
+ const c0=[-rot[0],-rot[1]],vis=(lo,la)=>d3.geoDistance([lo,la],c0)<1.5;
+ if(LB){ctx.textAlign='center';ctx.lineJoin='round';ctx.lineWidth=3;ctx.strokeStyle='rgba(3,20,35,.9)';ctx.fillStyle='#fff';
+  for(const b of LB){const dd=d3.geoDistance(b.c,c0);if(dd>1.25)continue;const fs=Math.min(20,b.d*k/(b.n.length*.6)*.85);if(fs<9.5)continue;const q=proj(b.c);if(!q)continue;ctx.font='600 '+fs.toFixed(1)+'px system-ui';ctx.globalAlpha=Math.min(1,(1.25-dd)*3);ctx.fillStyle='rgba(3,20,35,.85)';ctx.fillText(b.n,q[0]+1,q[1]+1.5);ctx.fillStyle='#fff';ctx.fillText(b.n,q[0],q[1])}ctx.globalAlpha=1;ctx.textAlign='left'}
+ if(sel){
+  if(sel.feat){ctx.fillStyle='rgba(255,211,110,.25)';ctx.strokeStyle='#ffd36e';ctx.lineWidth=2;ctx.beginPath();path(sel.feat);ctx.fill();ctx.stroke()}
+  ctx.strokeStyle='#ffd36e';ctx.lineWidth=1.8;ctx.setLineDash([5,6]);ctx.lineDashOffset=-t/40;
+  for(let i=1;i<=rev;i++){if((sel.p[i].kind||'c')!==(sel.p[i-1].kind||'c'))continue;ctx.beginPath();path({type:'LineString',coordinates:[[sel.p[i-1].lo,sel.p[i-1].la],[sel.p[i].lo,sel.p[i].la]]});ctx.stroke()}ctx.setLineDash([]);
+  sel.p.forEach((p,i)=>{if(i>rev||!vis(p.lo,p.la))return;const q=proj([p.lo,p.la]),age=(t-p.t0)/1000,dy=Math.max(0,1-age*2.5)*-90,cur=i===rev,rr=cur?9:6;
+   ctx.globalAlpha=Math.min(1,age*4);
+   for(let j=0;j<2;j++){const a=((age*.8+j*.5)%1);ctx.strokeStyle=`rgba(255,211,110,${.6*(1-a)})`;ctx.lineWidth=2;ctx.beginPath();ctx.arc(q[0],q[1],rr+a*26,0,7);ctx.stroke()}
+   ctx.fillStyle=cur?'rgba(255,93,115,.3)':(p.kind==='s'?'rgba(255,211,110,.3)':'rgba(126,232,250,.3)');ctx.beginPath();ctx.arc(q[0],q[1]+dy,rr*2.2,0,7);ctx.fill();
+   ctx.fillStyle=cur?'#ff5d73':(p.kind==='s'?'#ffd36e':'#7ee8fa');ctx.beginPath();ctx.arc(q[0],q[1]+dy,rr,0,7);ctx.fill();
+   ctx.globalAlpha=1})
+ }
+ if(!w1){ctx.fillStyle='#9ff5ff';ctx.font='13px system-ui';ctx.textAlign='center';ctx.fillText('loading map...',W/2,H-30);ctx.textAlign='left'}
+ track();requestAnimationFrame(frame)}
+requestAnimationFrame(frame);
+cv.addEventListener('pointerdown',e=>drag={x:e.clientX,y:e.clientY,m:0});
+addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;drag.m+=Math.abs(dx)+Math.abs(dy);const f=.35*base/k;tr[0]+=dx*f;tr[1]=Math.max(-80,Math.min(80,tr[1]-dy*f))});
+addEventListener('pointerup',e=>{if(drag&&drag.m<5&&started){let b=null,bd=28;if(false)R.forEach(r=>{if(d3.geoDistance(r.c,[-rot[0],-rot[1]])>1.5)return;const q=proj(r.c),d=Math.hypot(q[0]-e.clientX,q[1]-e.clientY);if(d<bd){bd=d;b=r}});
+ if(b)openR(b);else{const inv=proj.invert([e.clientX,e.clientY]);if(inv&&isFinite(inv[0])&&w1){const f=w1.c.find(f=>d3.geoContains(f,inv));if(f)lookup(f.properties.name)}}}drag=null});
+addEventListener('wheel',e=>{if(e.ctrlKey)e.preventDefault();pz=false;tk=Math.max(base*.7,Math.min(base*60,tk*Math.exp(-e.deltaY*(e.ctrlKey?.01:.0012))))},{passive:false});
+
+// ---------- places (curated + Wikipedia for the whole world) ----------
+const API='https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=coordinates|extracts&exintro=1&explaintext=1&colimit=max&exlimit=max&generator=search';
+async function wq(s,n,sent){const j=await(await fetch(API+'&exsentences='+sent+'&gsrlimit='+n+'&gsrsearch='+encodeURIComponent(s))).json();return Object.values((j.query||{}).pages||{}).sort((a,b)=>a.index-b.index)}
+const clean=s=>(s||'').split('\n')[0].replace(/\s*\([^)]*\)/g,'').replace(/\s+/g,' ').trim();
+async function wikiPlace(name){
+ try{const[m,cu,tu,cz]=await Promise.all([wq(name,3,5),wq('culture of '+name,1,3),wq('tourism in '+name,1,2),wq('cuisine of '+name,1,2)]);
+  const mp=m.find(p=>p.title.toLowerCase()===name.toLowerCase()&&p.coordinates)||m.find(p=>p.coordinates);if(!mp)return null;
+  const c=[mp.coordinates[0].lon,mp.coordinates[0].lat];
+  const[ci,at]=await Promise.all([wq(mp.title+' cities and towns',10,2),wq(mp.title+' tourist attractions',12,2)]);
+  const seen={[mp.title]:1};let pins=[];
+  [...ci,...at].forEach(p=>{if(!p.coordinates||seen[p.title]||/^(list of|tourism|geography|culture|economy|history|demographics)/i.test(p.title))return;const q=[p.coordinates[0].lon,p.coordinates[0].lat];if(d3.geoDistance(q,c)>.5)return;seen[p.title]=1;let v=clean(p.extract);if(v.length>330)v=v.slice(0,v.lastIndexOf(' ',330))+'.';pins.push({n:p.title,lo:q[0],la:q[1],v:v||'A place worth visiting.',t0:0})});
+  pins=pins.slice(0,10);const rt=[];while(pins.length){const l=rt.length?rt[rt.length-1]:{lo:c[0],la:c[1]};pins.sort((a,b)=>d3.geoDistance([a.lo,a.la],[l.lo,l.la])-d3.geoDistance([b.lo,b.la],[l.lo,l.la]));rt.push(pins.shift())}
+  const sts=(isCountry(mp.title)||isCountry(name))?await wikiStates(mp.title,c):[],all=[...sts,...rt],sp=Math.max(.02,...all.map(p=>d3.geoDistance([p.lo,p.la],c)));
+  let t=clean(mp.extract);const ex=(a,re,lab)=>{const p=a[0];if(p&&re.test(p.title)&&(p.title.toLowerCase().includes(name.toLowerCase())||p.title.toLowerCase().includes(mp.title.toLowerCase()))){const c=clean(p.extract);if(c)t+=' '+lab+' '+c}};ex(cu,/culture/i,'Culture and heritage.');ex(cz,/cuisine/i,'Food and cuisine.');ex(tu,/tourism/i,'Tourism.');
+  return{n:mp.title,c,z:all.length?Math.max(1.2,Math.min(30,.55/sp)):6,t:t.slice(0,1600),p:all}}catch(e){return null}}
+function resolve(q){q=q.trim();{const al=ALIAS[q.toLowerCase()];if(al)q=al}let r=findR(q);if(r)return{r};{const ex=ALLC.find(c=>c.toLowerCase()===q.toLowerCase());if(ex)return{q:ex,known:1}}let best=null,bd=99;names().concat(R.flatMap(r=>r.k)).forEach(c=>{const d=lev(q,c.toLowerCase());if(d<bd){bd=d;best=c}});
+ if(best&&bd<=Math.max(1,Math.floor(q.length*.3))){r=findR(best.toLowerCase());return r?{r}:{q:best,known:1}}return{q}}
+async function lookup(q){const x=resolve(q);if(x.r)return openR(x.r);const name=WT[x.q]||x.q,my=++lq;hush();endGuide();
+ sel=null;$('#pt').textContent=name;$('#txt').innerHTML='<p class="on">🌍 Searching the world for '+name+'...</p>';$('#panel').style.display='flex';
+ let r=await wikiPlace(name);if(my!==lq)return;
+ if(!r){try{const j=await(await fetch('https://en.wikipedia.org/w/api.php?action=query&list=search&srinfo=suggestion&srlimit=1&format=json&origin=*&srsearch='+encodeURIComponent(name))).json(),sg=j.query&&j.query.searchinfo&&j.query.searchinfo.suggestion;if(sg)r=await wikiPlace(sg)}catch(e){}if(my!==lq)return}
+ if(!r){$('#txt').innerHTML='<p class="on">Sorry, I could not find "'+name+'". Try another name.</p>';say('Sorry, I could not find '+name);return}
+ openR(r)}
+function say(t){if(!syn)return;syn.cancel();const u=new SSU(t);if(voice)u.voice=voice;syn.speak(u)}
+
+// ---------- narration ----------
+let voice=null;function pickV(){const v=syn.getVoices();voice=v.find(x=>/en-(IN|GB|US)/.test(x.lang)&&/natural|google|neural/i.test(x.name))||v.find(x=>x.lang.startsWith('en'))||null}
+syn&&(pickV(),syn.onvoiceschanged=pickV);
+const isCountry=t=>names().some(n=>(' '+n.toLowerCase()+' ').includes(' '+t.toLowerCase()+' '));
+const THE=n=>/^(united|netherlands|philippines|gambia|bahamas|czech|democratic|republic|comoros|maldives|central)/i.test(n)?'the ':'';
+async function cm(cat){try{const j=await(await fetch('https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=categorymembers&gcmtype=page&gcmlimit=100&prop=coordinates&colimit=max&gcmtitle='+encodeURIComponent('Category:'+cat))).json();return Object.values((j.query||{}).pages||{})}catch(e){return[]}}
+async function wikiStates(title,c){
+ const PAT=['States and union territories of','States and territories of','Provinces and territories of','Federal states of','States of','Union territories of','Provinces of','Regions of','Prefectures of','Territories of','Governorates of','Divisions of'],nm=[title];if(THE(title))nm.push('the '+title);
+ const cats=[];PAT.forEach(p=>nm.forEach(n=>cats.push(p+' '+n)));const seen={};let pins=[];
+ (await Promise.all(cats.map(cm))).forEach(a=>a.forEach(p=>{if(!p.coordinates||seen[p.title]||p.title===title||/^(list|category|template|politics|geography|history|economy|demographics|flag|coat|elections|states and|provinces|regions|union territories|territories|divisions)/i.test(p.title))return;const q=[p.coordinates[0].lon,p.coordinates[0].lat];if(d3.geoDistance(q,c)>1.3)return;seen[p.title]=1;pins.push({n:p.title.replace(/\s*\([^)]*\)/,''),lo:q[0],la:q[1],v:'',t0:0,kind:'s',tt:p.title})}));
+ if(!pins.length)return[];
+ const bs=[];for(let i=0;i<pins.length;i+=20)bs.push(pins.slice(i,i+20));
+ await Promise.all(bs.map(async b=>{const fb='A region of '+title+'.';try{const j=await(await fetch('https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=extracts&exintro=1&explaintext=1&exsentences=1&exlimit=20&titles='+encodeURIComponent(b.map(p=>p.tt).join('|')))).json(),ex={};Object.values((j.query||{}).pages||{}).forEach(p=>ex[p.title]=p.extract);b.forEach(p=>{let v=clean(ex[p.tt]);if(v.length>150)v=v.slice(0,v.lastIndexOf(' ',150))+'.';p.v=v||fb})}catch(e){b.forEach(p=>p.v=fb)}}));
+ const rt=[];pins.sort((a,b)=>a.lo-b.lo);rt.push(pins.shift());while(pins.length){const l=rt[rt.length-1];pins.sort((a,b)=>d3.geoDistance([a.lo,a.la],[l.lo,l.la])-d3.geoDistance([b.lo,b.la],[l.lo,l.la]));rt.push(pins.shift())}
+ return rt}
+async function openR(r){const my=++lq;
+ if(r.cn&&!r.sd){r.sd=1;hush();endGuide();sel=null;$('#pt').textContent=r.n;$('#txt').innerHTML='<p class="on">🗺 Loading states and territories of '+r.n+'...</p>';$('#panel').style.display='flex';
+  try{const st=await wikiStates(r.n,r.c);if(my!==lq)return;if(st.length)r.p=[...st,...r.p]}catch(e){}}
+ openR0(r)}
+function skipStates(){if(!sel)return;const i=S.findIndex(x=>x.h.startsWith('🏙'));if(i>=0){paused=false;$('#bp').textContent='⏸ Stop';speak(i)}}
+function openR0(r){
+ lq++;hush();endGuide();$('#bdl').style.display=r.trip?'inline-block':'none';sel=r;rev=-1;paused=false;fin=false;lostAt=0;r.p.forEach(p=>p.t0=0);
+ if(!r.feat&&w1)r.feat=w1.c.find(f=>f.properties.name.toLowerCase()===r.n.toLowerCase())||null;
+ S=[{h:'🌍 '+r.n,t:'Welcome to '+r.n+'.',pin:-1}];(r.t.match(/[^.!?]+[.!?]+(\s|$)/g)||[r.t]).forEach(s=>S.push({h:s.trim(),t:s.trim(),pin:-1}));
+ let pk='';r.p.forEach((p,i)=>{const kd=p.kind||'c';if(kd!==pk){pk=kd;S.push({h:kd==='s'?'🗺 States and territories of '+r.n:kd==='t'?'🧳 Your day-by-day itinerary':'🏙 Cities, towns and places to visit',t:kd==='s'?'Now, the states and territories of '+r.n+'.':kd==='t'?'Here is your itinerary.':'Now, some cities and places worth visiting.',pin:-1})}S.push({h:`<b>${kd==='s'?'🗺':'📍'} ${p.n}</b><br>${p.v}`,t:p.n+'. '+p.v,pin:i})});
+ S.push({h:'✨ That was '+r.n+'. Say "stop '+r.n+'" to return to the world, or name another place.',t:'That was '+r.n+'.',pin:-2});
+ $('#pt').textContent=r.n;$('#txt').innerHTML=S.map((s,i)=>`<p id="s${i}">${s.h}</p>`).join('');$('#panel').style.display='flex';$('#bp').textContent='⏸ Stop';
+ tr=[-r.c[0],-r.c[1]];tk=home=base*Math.max(1.1,r.z);setTimeout(()=>{if(sel===r)speak(0)},1100)}
+function speak(i){
+ if(!sel)return;if(i>=S.length){fin=true;if(tour)setTimeout(()=>{if(tour)openR(R[++ti%R.length])},1500);return}
+ idx=i;const my=++tok,s=S[i];
+ document.querySelectorAll('#txt p.on').forEach(x=>x.classList.remove('on'));const el=$('#s'+i);el.classList.add('on');el.scrollIntoView({block:'center'});
+ if(s.pin>=0){rev=Math.max(rev,s.pin);const p=sel.p[s.pin];if(!p.t0)p.t0=performance.now();if(!frozen){tr=[-p.lo,-p.la];tk=home=base*Math.min(14,p.kind==='s'?Math.max(sel.z*1.3,2.2):Math.max(sel.z*1.5,3))}}
+ else if(s.pin===-2&&!frozen){tr=[-sel.c[0],-sel.c[1]];tk=home=base*Math.max(1.1,sel.z)}
+ syn.cancel();const u=new SSU(s.t);if(voice)u.voice=voice;u.rate=.96;u.volume=.8;u.onend=()=>{if(my===tok&&!paused)setTimeout(()=>speak(i+1),250)};
+ setTimeout(()=>{if(my===tok)syn.speak(u)},60)}
+function hush(){tok++;syn&&syn.cancel()}
+function pause(){if(!sel)return;paused=true;hush();$('#bp').textContent='▶ Continue'}
+function resume(){if(!sel)return;paused=false;$('#bp').textContent='⏸ Stop';speak(idx)}
+function closeR(){tour=false;hush();sel=null;rev=-1;paused=false;lq++;$('#panel').style.display='none';tk=home=base*1.08}
+function startTour(){tour=true;ti=Math.floor(Math.random()*R.length);openR(R[ti])}
+$('#bp').onclick=()=>paused?resume():pause();$('#bn').onclick=()=>{if(sel){paused=false;$('#bp').textContent='⏸ Stop';speak(Math.min(idx+1,S.length-1))}};$('#bc').onclick=closeR;$('#bk').onclick=skipStates;
+$('#cl').onclick=e=>{const b=e.target.closest('button');if(!b)return;tour=false;if(b.id==='sp')openR(R[Math.floor(Math.random()*R.length)]);else if(b.id==='tb')startTour();else if(b.id==='cb')openCountries();else if(b.id==='trb')openTrip();else if(b.id==='hb')sayGuide();else openR(R[+b.dataset.i])};
+$('#sf').onsubmit=e=>{e.preventDefault();const v=$('#si').value.trim();if(v){tour=false;lookup(v);$('#si').blur()}};
+
+
+// ---------- Gemini trip planner ----------
+// NOTE: this key sits in the page source, so anyone who opens this file can read it. Restrict it in Google AI Studio / Cloud Console and rotate it if shared.
+const GEMINI_KEY='AQ.Ab8RN6I362PzMuL1Oa2axOr2ukPdTJTblKeCX-YkFICH5jrRHQ',GMODELS=['gemini-3.8-flash','gemini-flash-latest'];let lastTrip=null;
+function openTrip(){hush();endGuide();gModels();$('#tmsg').textContent='';$('#tgo').disabled=false;$('#trip').classList.add('on')}
+$('#tcl').onclick=()=>$('#trip').classList.remove('on');
+// <planner-core>
+let oaiOff='';
+async function retry(f){let e;for(let i=0;i<3;i++){try{return await f()}catch(x){e=x;if(x.name==='AbortError'||!/demand|overload|unavailable|try again|temporar|busy|rate limit|resource/i.test(x.message||''))throw x;await new Promise(r=>setTimeout(r,800*(i+1)))}}throw e}
+// Picks the newest available Gemini "flash" models for this key automatically, so retired model names never break the planner.
+let gmP=null;
+function gModels(){return gmP||(gmP=(async()=>{try{const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200',{headers:{'x-goog-api-key':GEMINI_KEY}});const j=await r.json();if(!r.ok)throw 0;
+ const v=x=>parseFloat((x.match(/gemini-([\d.]+)/)||[0,0])[1]),ms=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')&&/gemini-[\d.]+-flash/.test(m.name)&&!/image|tts|live|audio|embed|thinking|exp|vision|robotics|computer|8b/i.test(m.name)).map(m=>m.name.replace('models/','')).sort((a,b)=>v(b)-v(a)||(/preview/.test(a)?1:0)-(/preview/.test(b)?1:0)||(/lite/.test(a)?1:0)-(/lite/.test(b)?1:0));
+ if(ms.length)return ms.slice(0,3)}catch(e){}return GMODELS})())}
+async function callG(m,sig,prompt,mt){
+ const mk=th=>JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:Object.assign({responseMimeType:'application/json',temperature:.6,maxOutputTokens:mt||2800},th?{thinkingConfig:{thinkingBudget:0}}:{})}),url='https://generativelanguage.googleapis.com/v1beta/models/'+m+':generateContent',
+  H=[{'x-goog-api-key':GEMINI_KEY},{Authorization:'Bearer '+GEMINI_KEY}];let hi=0,th=true,r,j,msg='';
+ for(let n=0;n<4;n++){
+  try{r=await fetch(url,{method:'POST',signal:sig,headers:Object.assign({'Content-Type':'application/json'},H[hi]),body:mk(th)});j=await r.json()}catch(e){if(e.name==='AbortError')throw e;throw new Error('Could not reach the trip planner - check your internet connection.')}
+  if(r.ok)break;msg=(j.error&&j.error.message)||('Planner error '+r.status);
+  if(th&&/think/i.test(msg)){th=false;continue}
+  if(hi===0&&(/api key|credential|authenticat/i.test(msg)||[401,403].includes(r.status))){hi=1;continue}
+  break}
+ if(!r.ok)throw new Error(msg);
+ const t=(j.candidates&&j.candidates[0]&&j.candidates[0].content.parts||[]).map(p=>p.text||'').join('');
+ try{return JSON.parse(t.replace(/```json|```/g,'').trim())}catch(e){throw new Error('The planner returned an unreadable plan - try again.')}}
+async function callO(sig,prompt,mt){
+ let r,j;try{r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',signal:sig,headers:{'Content-Type':'application/json',Authorization:'Bearer '+OPENAI_KEY},body:JSON.stringify({model:'gpt-4o-mini',response_format:{type:'json_object'},temperature:.6,max_tokens:mt||2500,messages:[{role:'system',content:'You are an expert travel planner. Reply with JSON only.'},{role:'user',content:prompt}]})});j=await r.json()}catch(e){if(e.name==='AbortError')throw e;throw new Error('Could not reach the backup planner - check your internet connection.')}
+ if(!r.ok){let m=(j.error&&j.error.message)||('Backup planner error '+r.status);if(/credit|quota|billing/i.test(m)){m='Your OpenAI account has no credits - add some at platform.openai.com/settings/organization/billing';oaiOff=m}throw new Error(m)}
+ try{return JSON.parse(j.choices[0].message.content)}catch(e){throw new Error('The backup planner returned an unreadable plan - try again.')}}
+function flat(e,o){o=o||[];if(e&&e.errors)e.errors.forEach(x=>flat(x,o));else o.push(e);return o}
+async function gem(prompt){const ac=new AbortController(),to=setTimeout(()=>ac.abort(),35000);let ot;
+ const ms=await gModels(),tag=(src,p)=>p.catch(e=>{if(e&&e.name!=='AbortError')e.src=src;throw e});
+ const gp=Promise.any(ms.map(m=>tag('Primary',retry(()=>callG(m,ac.signal,prompt)))));
+ const op=new Promise((res,rej)=>{const go=()=>tag('Backup',oaiOff?Promise.reject(new Error(oaiOff)):callO(ac.signal,prompt)).then(res,rej);ot=setTimeout(go,6000);gp.catch(()=>{clearTimeout(ot);go()})});
+ try{return await Promise.any([gp,op])}
+ catch(e){const es=flat(e).filter(x=>x&&x.name!=='AbortError'&&x.message);if(!es.length)throw new Error('This is taking too long - please try again.');
+  const seen={},out=[];es.sort((a,b)=>(a.src==='Primary'?0:1)-(b.src==='Primary'?0:1)).forEach(x=>{const k=(x.src||'')+x.message;if(!seen[k]){seen[k]=1;out.push((x.src?x.src+' planner: ':'')+String(x.message).slice(0,170))}});
+  throw new Error(out.slice(0,2).join('  |  '))}
+ finally{clearTimeout(to);clearTimeout(ot);ac.abort()}}
+// </planner-core>
+
+// Last resort when every AI planner is busy or unavailable: build a basic plan from live place data so the planner never dead-ends.
+async function localPlan(a){
+ const fx={INR:1,USD:85,EUR:92,GBP:108}[a.cu]||1,pp=a.bu*fx/a.tr2/a.da,pick=l=>l[Math.floor(Math.random()*l.length)];let dest=a.de;
+ if(!dest)dest=a.sc==='india'||pp<2500?pick(['Rajasthan','Kerala','Goa','Himachal Pradesh','Uttarakhand','Assam']):pp<5000?pick(['Thailand','Vietnam','Sri Lanka','Nepal']):pp<12000?pick(['Turkey','Egypt','Japan','Peru','Kenya']):pick(['Italy','France','Japan','Australia']);
+ const w=await wikiPlace(dest);if(!w||!w.p.length)return null;
+ const pool=w.p.filter(p=>p.kind!=='s').concat(w.p.filter(p=>p.kind==='s')),n=Math.max(1,Math.min(pool.length,a.da*3,12)),use=pool.slice(0,n);
+ const bd={transport:.3,stay:.35,food:.2,activities:.1,misc:.05},R10=x=>Math.round(x/10)*10,B={};Object.keys(bd).forEach(k=>B[k]=R10(a.bu*bd[k]));
+ const per=R10(B.activities/n);
+ return{title:a.da+'-day trip to '+w.n,destination:w.n,summary:'A '+a.da+'-day '+a.stl.toLowerCase()+' trip to '+w.n+' for '+a.tr2+' traveller(s) within '+a.bu+' '+a.cu+'. All costs are rough estimates.',
+  gettingThere:'Set aside about '+a.cu+' '+B.transport+' for transport.',stay:'Plan about '+a.cu+' '+R10(B.stay/Math.max(1,a.da-1)/Math.ceil(a.tr2/2))+' per room per night.',
+  stops:use.map((p,i)=>({day:Math.min(a.da,Math.floor(i*a.da/n)+1),name:p.n,lat:p.la,lon:p.lo,activity:(p.v||'Explore '+p.n+'.').split(/(?<=[.!?])\s/)[0].slice(0,160),cost:a.cu+' '+per})),
+  budget:B,total:Object.values(B).reduce((x,y)=>x+y,0),tips:['Book transport and stays early for better prices.','Keep about 5 percent of the budget aside for surprises.','Check local travel advisories and entry rules before you go.']}}
+$('#tgo').onclick=async()=>{
+ const v=id=>$(id).value.trim(),sc=v('#tsc'),de=v('#tde'),bu=v('#tbu'),cu=v('#tcu'),da=v('#tda'),tr2=v('#ttr'),fr=v('#tfr'),stl=v('#tst');
+ if(!(+bu>0)||!(+da>0)){$('#tmsg').textContent='Please enter a budget and number of days.';return}
+ $('#tgo').disabled=true;$('#tmsg').textContent='✨ Planning your trip... 0s';let sec=0;const iv=setInterval(()=>{$('#tmsg').textContent='✨ Planning your trip... '+(++sec)+'s'},1000);
+ const prompt=`You are an expert travel planner. Create a ${da}-day trip plan for ${tr2} traveller(s) ${sc==='india'?'within India':sc==='intl'?'to an international destination':'to the best destination in India or abroad for this budget'}${de?', focusing on '+de:''}${fr?', starting from '+fr:''}. Total budget for the whole group: ${bu} ${cu}. Style: ${stl}. Reply ONLY with JSON: {"title":string,"destination":string,"summary":string (max 2 short sentences),"bestTime":string,"gettingThere":string (one line with fare estimate),"stay":string (one line: stay type and price per night),"stops":[{"day":number,"name":string,"lat":number,"lon":number,"activity":string (under 20 words),"cost":string (like "${cu} 3500")}],"budget":{"transport":number,"stay":number,"food":number,"activities":number,"misc":number},"total":number,"tips":[string,string,string]}. Real places, accurate coordinates, 2-3 stops per day, at most 12 stops, total within budget, all amounts in ${cu}, no emojis.`;
+ try{let g;try{g=await gem(prompt)}catch(e0){g=await localPlan({sc,de,bu:+bu,cu,da:Math.max(1,Math.min(21,+da)),tr2:Math.max(1,+tr2),stl});if(!g)throw e0;g.summary='The AI planners are busy or unavailable right now, so this is a basic plan built from live place data. '+g.summary}const sp=(g.stops||[]).filter(x=>isFinite(x.lat)&&isFinite(x.lon)&&x.name);
+  if(!sp.length)throw new Error('The planner did not return any places - try again.');
+  const c=[+sp[0].lon,+sp[0].lat],ds=sp.map(x=>d3.geoDistance([+x.lon,+x.lat],c)),spr=Math.max(.02,...ds),b=g.budget||{};
+  const bt=Object.keys(b).length?' Budget split in '+cu+': '+Object.entries(b).map(([a,x])=>a+' '+x).join(', ')+'.':'';
+  const r={n:g.title||'Your trip',c,z:Math.max(1.2,Math.min(30,.55/spr)),sd:1,
+   t:(g.summary||'')+(g.bestTime?' Best time to go: '+g.bestTime+'.':'')+(g.gettingThere?' Getting there: '+g.gettingThere+'.':'')+(g.stay?' Where to stay: '+g.stay+'.':'')+(g.total?' Estimated total: '+g.total+' '+cu+'.':'')+bt+' '+(g.tips||[]).slice(0,3).map(x=>'Tip: '+x).join(' '),
+   p:sp.map(x=>({n:x.name,lo:+x.lon,la:+x.lat,v:'Day '+x.day+'. '+(x.activity||'')+(x.cost?' Estimated cost '+x.cost+'.':''),t0:0,kind:'t'}))};
+  r.trip={g,cu,bu,da,tr2,stl,sp};lastTrip=r.trip;$('#trip').classList.remove('on');tour=false;openR0(r)}
+ catch(e){$('#tmsg').textContent='⚠ '+e.message;$('#tgo').disabled=false}finally{clearInterval(iv)}};
+
+
+// ---------- itinerary download (plain document, no logos or branding) ----------
+const asc=x=>String(x==null?'':x).replace(/₹/g,'INR ').replace(/€/g,'EUR ').replace(/£/g,'GBP ').replace(/\$/g,'USD ').replace(/[–—]/g,'-').replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[^\x20-\x7E]/g,'').replace(/\s+/g,' ').trim();
+function tripBlocks(){const T=lastTrip;if(!T)return[];const g=T.g,cu=T.cu,B=[['T',g.title||'Trip itinerary'],['S',[g.destination,T.da+' days',T.tr2+' traveller(s)','Budget '+cu+' '+T.bu,T.stl].filter(Boolean).join(' | ')],['P',g.summary]];
+ if(g.bestTime)B.push(['P','Best time to go: '+g.bestTime]);if(g.gettingThere)B.push(['P','Getting there: '+g.gettingThere]);if(g.stay)B.push(['P','Where to stay: '+g.stay]);
+ const days={};T.sp.forEach(x=>(days[x.day]=days[x.day]||[]).push(x));
+ Object.keys(days).sort((a,b)=>a-b).forEach(d=>{B.push(['H','Day '+d]);days[d].forEach(x=>B.push(['B',x.name+': '+(x.activity||'')+(x.cost?' ('+x.cost+')':'')]))});
+ if(g.budget){B.push(['H','Budget breakdown ('+cu+')']);Object.entries(g.budget).forEach(([k,v])=>B.push(['B',k.charAt(0).toUpperCase()+k.slice(1)+': '+v]));if(g.total)B.push(['B','Estimated total: '+g.total])}
+ if(g.tips&&g.tips.length){B.push(['H','Travel tips']);g.tips.forEach(x=>B.push(['B',x]))}
+ return B.map(([k,x])=>[k,asc(x)]).filter(b=>b[1])}
+function dlFile(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
+function dlTrip(){const B=tripBlocks();if(!B.length)return;const base=(lastTrip.g.title||'itinerary').replace(/[^\w]+/g,'-').toLowerCase().replace(/^-|-$/g,'').slice(0,40)||'itinerary';
+ if(window.jspdf){const d=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),st={T:[20,'bold'],S:[10,'normal'],P:[11,'normal'],H:[14,'bold'],B:[11,'normal']};let y=20;
+  B.forEach(([k,x])=>{const[fs,fw]=st[k];d.setFont('helvetica',fw);d.setFontSize(fs);const ln=d.splitTextToSize((k==='B'?'- ':'')+x,180),lh=fs*.5;if(k==='H')y+=3;if(y+ln.length*lh>280){d.addPage();y=20}d.text(ln,15,y);y+=ln.length*lh+(k==='T'?3:k==='H'?2:1.5)});
+  d.save(base+'.pdf')}
+ else{const e=x=>x.replace(/&/g,'&amp;').replace(/</g,'&lt;'),tg={T:'h1',S:'p',P:'p',H:'h2',B:'li'};
+  dlFile(base+'.html',new Blob(['<!DOCTYPE html><meta charset="utf-8"><title>'+e(B[0][1])+'</title><style>body{font:16px/1.5 Arial,sans-serif;max-width:760px;margin:30px auto;padding:0 16px;color:#111}h2{margin-top:24px;border-bottom:1px solid #ccc}</style>'+B.map(([k,x])=>'<'+tg[k]+'>'+e(x)+'</'+tg[k]+'>').join('')],{type:'text/html'}))}}
+$('#bdl').onclick=dlTrip;
+// ---------- connection test ----------
+$('#tts').onclick=async()=>{const ac=new AbortController();setTimeout(()=>ac.abort(),20000);$('#tmsg').textContent='Testing connection...';const sh=e=>e.name==='AbortError'?'timed out':String(e.message).slice(0,80),p='Reply with JSON {"ok":true}';
+ const r=await Promise.all([gModels().then(ms=>callG(ms[0],ac.signal,p,50)).then(()=>'Primary planner: working',e=>'Primary planner: '+sh(e)),callO(ac.signal,p,20).then(()=>'Backup planner: working',e=>'Backup planner: '+sh(e))]);$('#tmsg').textContent=r.join('  |  ')};
+// ---------- all countries browser ----------
+function fillC(f){$('#cgrid').innerHTML=ALLC.filter(c=>c.toLowerCase().includes(f)).map(c=>'<button data-c="'+c+'">'+c+'</button>').join('')}
+function openCountries(){hush();endGuide();$('#cn').textContent=ALLC.length;$('#cmodal').classList.add('on');$('#cq').value='';fillC('');$('#cq').focus()}
+$('#cq').oninput=e=>fillC(e.target.value.toLowerCase().trim());
+$('#cgrid').onclick=e=>{const b=e.target.closest('button');if(b){$('#cmodal').classList.remove('on');tour=false;lookup(b.dataset.c)}};
+$('#ccl').onclick=()=>$('#cmodal').classList.remove('on');
+
+// ---------- guide ----------
+const GUIDE=[['🖐 Open palm - move left, right, up, down to rotate the globe','Open your palm and move it left, right, up or down to rotate the globe.'],['✊ Fist - freezes the globe (you can still steer)','Close your fist to freeze the globe. You can still move your hand to steer it.'],['🤏 Pinch - thumb and finger apart zooms in, together zooms out','With an open palm, pinch your thumb and finger together to zoom out, and spread them apart to zoom in.'],['🌐 Two hands - hold one above the other, the globe floats between them and spins','Hold one hand above the other, as if holding a ball, and the globe will float between your hands and spin.'],['🔒 While a place is narrated, gestures pause so you can watch the pins','While a place is being narrated, hand gestures pause so you can watch the pins. Say stop or close to use them again.'],['🎙 "Tell me about ..." - any country, state or city on Earth','Say tell me about, followed by any country, state or city in the world, like Assam, Japan or Paris.'],['⏸ "Stop", "Continue", "Stop Assam"','Say stop to pause the story, continue to resume, and stop followed by the place name to close it.'],['🧭 "Start tour", "Surprise me", "Next", "Zoom in"','Say start tour for an automatic world journey, surprise me for a random place, or next to skip ahead.'],['🖱 Click any country, or type in the search box','You can also click any country on the globe, or type a place in the search box.'],['🚀 Have fun exploring!','Have fun exploring the world!']];
+$('#gl').innerHTML=GUIDE.map(g=>'<li>'+g[0]+'</li>').join('');
+function sayGuide(){guide=true;const my=++gt;$('#guide').classList.add('on');let i=0;const L=document.querySelectorAll('#gl li');
+ const go=()=>{if(!guide||my!==gt)return;if(i>=GUIDE.length)return endGuide();L.forEach((x,j)=>x.classList.toggle('on',j===i));const u=new SSU(GUIDE[i][1]);if(voice)u.voice=voice;u.onend=()=>{i++;setTimeout(go,350)};syn.cancel();setTimeout(()=>syn.speak(u),50)};go()}
+function endGuide(){if(!guide)return;guide=false;gt++;syn.cancel();$('#guide').classList.remove('on')}
+$('#gs').onclick=endGuide;
+
+// ---------- voice ----------
+const norm=t=>t.toLowerCase().replace(/[^a-z\s]/g,' ').replace(/\s+/g,' ').trim();
+const STRONG='tell me (?:something |more )?about|tell us about|take me to|show me|fly to|navigate to|travel to|head to|i want to (?:see|visit|go to)|lets see|let s see|let us see|zoom to|search for';
+const WEAK='open|explore|visit|show|go to|what about|how about|where is|what is';
+const VB=new RegExp('\\b('+STRONG+'|'+WEAK+')\\s+(?:the |a )?([a-z]+(?: [a-z]+){0,3})','g');
+const cl=x=>{let p;do{p=x;x=x.replace(/\s+(please|now|thanks|thank you|for me|and|then|so)$/,'')}while(x!==p);return x.trim()};
+const resolveKnown=c=>{const x=resolve(c);return !!(x.r||x.known)};
+function placeCmd(t,sp){
+ const an=t.match(new RegExp('^(?:please |hey |ok |okay |can you |could you |i want to |lets )?(?:'+STRONG+'|'+WEAK+')\\s+(?:the |a )?(.+)$'));
+ if(an&&!sp){const c=cl(an[1]);if(c)return c}
+ let last=null,x;VB.lastIndex=0;while((x=VB.exec(t)))last=x;if(!last)return null;
+ const ws=cl(last[2]).split(' '),strong=new RegExp('^(?:'+STRONG+')$').test(last[1]);
+ for(let l=Math.min(ws.length,3);l>=1;l--){const c=ws.slice(0,l).join(' ');if(resolveKnown(c))return c}
+ return strong?ws.slice(0,3).join(' '):null}
+let lastCtl={},lastQ=null,qTimer=0,lastDone={q:'',t:0},cons={};
+function act(nm,fn){const n=Date.now();if(n-(lastCtl[nm]||0)<1500)return 1;lastCtl[nm]=n;fn();return 1}
+function ctrl(t){
+ const w=t.split(' '),tail=w.slice(-5).join(' '),last=w[w.length-1];
+ if(sel&&!guide&&last.length>=4&&last.length<=9){if(last!=='stop'&&(lev(last,'stop')<=1||lev(last,'pause')<=1||lev(last,'halt')<=0))return act('p',pause);if(last!=='continue'&&(lev(last,'continue')<=2||lev(last,'resume')<=1))return act('r',resume)}
+ if(/\b(plan (a |my )?(trip|tour|itinerary|holiday|vacation)|trip planner)\b/.test(tail))return act('tp',openTrip);
+ if(guide){return /\b(skip|stop|enough|close|ok|okay)\b/.test(tail)?act('g',endGuide):0}
+ if(/\b(end|stop|exit|cancel) (the )?tour\b/.test(tail)||/\bend tour\b/.test(tail))return act('et',()=>{tour=false;closeR()});
+ if(/\b(start|begin) (the |a )?tour\b/.test(tail))return act('st',startTour);
+ if(sel&&/\b(close|exit|quit)( it| this| that| please| the map)?$/.test(tail))return act('cl',closeR);
+ if(sel&&/\b(stop|stopped|stopping|pause|paused|halt|be quiet|shut up|hold on)\b/.test(tail)){const nm=sel.n.toLowerCase().split(' ')[0];if(tail.includes(nm)||findR(tail))return act('cl',closeR);return act('p',pause)}
+ if(sel&&/\b(continue|resume|carry on|keep going|proceed|go ahead|start again)\b/.test(tail))return act('r',resume);
+ if(sel&&/\bskip (the )?(states|provinces|regions|territories)\b/.test(tail))return act('ss',skipStates);
+ if(sel&&(last==='next'||last==='skip'))return act('n',()=>$('#bn').click());
+ if(/\b(surprise me|random place)\b/.test(tail))return act('s',()=>{tour=false;openR(R[Math.floor(Math.random()*R.length)])});
+ if(/\bzoom in\b/.test(tail))return act('zi',()=>{tk*=1.8});if(/\bzoom out\b/.test(tail))return act('zo',()=>{tk/=1.8});
+ if(/\b(help|instructions)$/.test(tail))return act('h',sayGuide);
+ if(/music off|mute music/.test(tail))return act('mo',()=>music(0));if(/music on/.test(tail))return act('mn',()=>music(1));
+ return 0}
+function doLookup(q){const n=Date.now();if(lastDone.q===q&&n-lastDone.t<4000)return;lastDone={q,t:n};const x=resolve(q);if(sel&&(x.r===sel||sel.n.toLowerCase()===q))return;tour=false;lookup(q)}
+addEventListener('keydown',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){if(e.key==='Escape')$('#trip').classList.remove('on');return}if(e.code==='Space'){e.preventDefault();if(sel)paused?resume():pause()}else if(e.key==='Escape')closeR()});
+let rec=null,sess=0,micOn=false,ht=0,fails=0,lastEnd=0;
+function initMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){$('#heard').textContent='🎙 voice needs Chrome or Edge';return}
+ micOn=true;const go=()=>{if(!micOn)return;rec=new SR();rec.continuous=true;rec.interimResults=true;rec.lang='en-IN';rec.maxAlternatives=5;try{const GL=window.SpeechGrammarList||window.webkitSpeechGrammarList;if(GL){const g=new GL();g.addFromString('#JSGF V1.0; grammar c; public <c> = stop | pause | continue | resume | close | next | open | tell me about | take me to | show me | plan a trip | start tour | surprise me | '+names().join(' | ')+' ;',1);rec.grammars=g}}catch(e){}sess++;
+  rec.onstart=()=>{$('#heard').textContent='🎙 listening - say "open Australia" or "stop"'};
+  rec.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){const res=e.results[i],fin=res.isFinal,key=sess+'-'+i,b0=cons[key]||0;vb=performance.now();
+   $('#heard').textContent='🎙 '+res[0].transcript;clearTimeout(ht);ht=setTimeout(()=>$('#heard').textContent='🎙 listening...',3500);
+   const w0=norm(res[0].transcript).split(' ').length;let q=null,hit=0;const sp=syn&&syn.speaking;
+   for(let a=0;a<res.length&&!hit;a++){const t=norm(res[a].transcript).split(' ').slice(b0).join(' ');if(!t)continue;if(ctrl(t)){hit=1;break}const c=placeCmd(t,sp);if(c&&(!q||resolveKnown(c)))q=c}
+   if(hit){cons[key]=w0;continue}
+   if(q&&fin){clearTimeout(qTimer);lastQ=null;cons[key]=w0;doLookup(q)}
+   else if(q!==lastQ){lastQ=q;clearTimeout(qTimer);if(q)qTimer=setTimeout(()=>{if(lastQ){cons[key]=w0;doLookup(lastQ)}},700)}
+   if(fin&&!q)$('#heard').textContent='🎙 heard "'+res[0].transcript+'" - try: open Australia'}};
+  rec.onerror=e=>{if(e.error==='network')$('#heard').textContent='🎙 voice needs an internet connection';if(e.error==='not-allowed'||e.error==='service-not-allowed'){micOn=false;$('#heard').textContent='🎙 microphone blocked - allow it and reload'}};
+  rec.onend=()=>{const n=Date.now();fails=n-lastEnd<1500?fails+1:0;lastEnd=n;setTimeout(go,fails>4?1500:100)};try{rec.start()}catch(e){}};go()}
+
+// ---------- music ----------
+let ac=null,mg,step=0,mon=1;
+function music(on){mon=on;if(mg)mg.gain.value=on?.09:0;$('#bm').textContent=on?'🎵 Music':'🔇 Music'}
+function initMusic(){if(ac)return;ac=new(window.AudioContext||window.webkitAudioContext)();mg=ac.createGain();mg.gain.value=.09;const dl=ac.createDelay(1),fb=ac.createGain();dl.delayTime.value=.36;fb.gain.value=.38;mg.connect(ac.destination);mg.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(ac.destination);
+ const sc=[293.66,329.63,369.99,440,493.88,587.33,659.25,739.99],arp=[0,2,4,2,5,4,2,1],roots=[146.83,110,123.47,98];
+ const n=(f,t,d,ty,v)=>{const o=ac.createOscillator(),g=ac.createGain();o.type=ty;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.03+(d>1?d*.3:0));g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(mg);o.start(t);o.stop(t+d+.1)};
+ setInterval(()=>{if(ac.state==='suspended')ac.resume();const t=ac.currentTime+.05,s=step%8,b=Math.floor(step/8)%4;if(s===0)n(roots[b],t,2.6,'sine',.5);n(sc[(arp[s]+[0,2,1,0][b])%8],t,.7,'triangle',.28);if(Math.random()<.25)n(sc[(arp[s]+4)%8]*2,t+.15,.5,'sine',.1);step++},300)}
+$('#bm').onclick=()=>{initMusic();music(mon?0:1)};
+
+// ---------- start: zoom in / zoom out reveal, then spoken guide ----------
+function begin(cam){if(started)return;started=true;$('#intro').classList.add('out');document.body.classList.add('run');initMusic();initMic();if(cam)initCam();else $('#hs').textContent='mouse mode';
+ introUntil=performance.now()+3800;tk=base*.4;tr[0]+=90;setTimeout(()=>{$('#warp').classList.add('go');tk=home=base*1.08;tr[0]+=200;tr[1]=14},800);setTimeout(()=>$('#intro').style.display='none',1700);setTimeout(sayGuide,4000)}
+if(!window.SpeechSynthesisUtterance||!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)||!(window.SpeechRecognition||window.webkitSpeechRecognition)){const e=$('#env');e.style.display='block';e.textContent='Heads up: this preview cannot use the camera, microphone or spoken narration. For the full experience open the file directly in Chrome or Edge on a computer. Everything else (map, text, search, trip planner, mouse/touch) works here.'}
+$('#start').onclick=()=>begin(true);$('#nocam').onclick=()=>begin(false);
+</script></body></html>
